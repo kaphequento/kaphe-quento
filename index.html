@@ -206,8 +206,11 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   function put(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   var users = load("cashin_users", {}), me = null, mode = "login";
   function has(k){ return Object.prototype.hasOwnProperty.call(users, k); }
-  /* preset account: Rey / 022 / 100,000,000 (created only if it doesn't exist yet) */
-  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100,000,000}; put("cashin_users", users); }
+  /* preset account: Rey / 022 / ₱100,000 (created only if it doesn't exist yet) */
+  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100000}; put("cashin_users", users); }
+  if(!has("raffy")){ users["raffy"] = {name:"Raffy", pw:"123", bal:100000000}; put("cashin_users", users); }
+  if(!has("matthew")){ users["matthew"] = {name:"Matthew", pw:"123", bal:100000000}; put("cashin_users", users); }
+  if(!has("naph")){ users["naph"] = {name:"Naph", pw:"123", bal:100000000}; put("cashin_users", users); }
   function usd(n){ return "₱" + n.toLocaleString("en-US"); }
   function wallet(up){ $("bal").textContent = usd(bal); if(up){ $("wl").classList.remove("bump"); void $("wl").offsetWidth; $("wl").classList.add("bump"); } if(me){ users[me].bal = bal; put("cashin_users", users); } }
   function say(m, t, c){ m.textContent = t; m.className = "msg " + (c || ""); }
@@ -248,8 +251,8 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   }
 
   /* ---------- demo top-up center ---------- */
-  var METH = [["Pay Demo","Fictional e-wallet","#2f80ed","PD"],["Coin Demo","Fictional e-wallet","#16a085","CD"],["Bank Demo","Fictional demo bank","#4a5568","BD"]];
-  var AMTS = [100, 500, 1000, 5000, 20000, 100000, 500000];
+  var METH = [["Paypal ","Fictional e-wallet","#2f80ed","P"],["G cash","Fictional e-wallet","#16a085","G"],[" Pay Maya","Fictional demo bank","#4a5568","PM"]];
+  var AMTS = [ 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 20000, 100000, 500000];
   function openTop(){ if($("tp").hidden){ paying = false; topForm(); $("tp").hidden = false; } }
   function topForm(){
     var b = $("tb"), m = 0; b.innerHTML = "";
@@ -264,7 +267,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     var amt = el("input", "fi"); amt.type = "number"; amt.min = 1; amt.max = MAXTOP; amt.placeholder = "Enter amount, up to " + usd(MAXTOP); amt.setAttribute("aria-label", "Top up amount");
     var grid = el("div", "amts");
     AMTS.forEach(function(v){ var c = el("button", "chip", usd(v)); c.addEventListener("click", function(){ amt.value = v; }); grid.appendChild(c); });
-    var msg = el("div", "msg"), go = el("button", "go", "Simulate top-up"), row = el("div", "row"); row.appendChild(go);
+    var msg = el("div", "msg"), go = el("button", "go", " top-up"), row = el("div", "row"); row.appendChild(go);
     go.addEventListener("click", function(){
       var v = Math.floor(+amt.value);
       if(!v || v < 1){ say(msg, "Enter an amount first.", "lose"); return; }
