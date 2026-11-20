@@ -208,7 +208,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   var users = load("cashin_users", {}), me = null, mode = "login";
   function has(k){ return Object.prototype.hasOwnProperty.call(users, k); }
   /* preset account: Rey / 022 / ₱100,000 (created only if it doesn't exist yet) */
-  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100000}; put("cashin_users", users); }
+  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100000000}; put("cashin_users", users); }
   if(!has("raffy")){ users["raffy"] = {name:"Raffy", pw:"123", bal:100000000}; put("cashin_users", users); }
   if(!has("matthew")){ users["matthew"] = {name:"Matthew", pw:"123", bal:100000000}; put("cashin_users", users); }
   if(!has("naph")){ users["naph"] = {name:"Naph", pw:"123", bal:100000000}; put("cashin_users", users); }
