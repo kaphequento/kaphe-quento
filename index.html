@@ -206,8 +206,8 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   function put(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   var users = load("cashin_users", {}), me = null, mode = "login";
   function has(k){ return Object.prototype.hasOwnProperty.call(users, k); }
-  /* preset account: Rey / 022 / ₱100,000 (created only if it doesn't exist yet) */
-  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100000}; put("cashin_users", users); }
+  /* preset account: Rey / 022 / 100,000,000 (created only if it doesn't exist yet) */
+  if(!has("rey")){ users["rey"] = {name:"Rey", pw:"022", bal:100,000,000}; put("cashin_users", users); }
   function usd(n){ return "₱" + n.toLocaleString("en-US"); }
   function wallet(up){ $("bal").textContent = usd(bal); if(up){ $("wl").classList.remove("bump"); void $("wl").offsetWidth; $("wl").classList.add("bump"); } if(me){ users[me].bal = bal; put("cashin_users", users); } }
   function say(m, t, c){ m.textContent = t; m.className = "msg " + (c || ""); }
