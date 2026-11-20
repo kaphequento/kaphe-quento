@@ -100,7 +100,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
 .rb button{padding:.7rem .3rem;border-radius:10px;border:2px solid var(--line);color:#fff;font-weight:700}
 .rb button[aria-pressed="true"]{outline:3px solid var(--gold)}
 .ball{width:110px;height:110px;margin:1rem auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:900;border:6px solid var(--gold);background:#333}
-#au{z-index:30}.lo{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:.5rem .9rem}.tabs{display:flex;gap:.4rem;margin:.6rem 0}.fi{width:100%;background:#ffffff0d;border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem;color:var(--ink);margin-top:.6rem}
+#au{z-index:30;flex-wrap:wrap;gap:1rem;overflow:auto}.qrb{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:1rem;width:min(240px,100%);text-align:center;animation:pop .3s ease}.qrb canvas{width:100%;max-width:200px;height:auto;border-radius:12px;background:#fff;image-rendering:pixelated}.qrb h4{margin:.1rem 0 .6rem}.qrb p{font-size:.72rem;color:var(--mute);margin:.5rem 0 0;word-break:break-all}.lo{background:none;border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:.5rem .9rem}.tabs{display:flex;gap:.4rem;margin:.6rem 0}.fi{width:100%;background:#ffffff0d;border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem;color:var(--ink);margin-top:.6rem}
 .ag{display:grid;grid-template-columns:repeat(5,1fr);gap:.3rem;margin:1rem 0}
 .ac{height:58px;border-radius:8px;background:#fff;color:#111;font-weight:800;font-size:1.3rem;display:flex;align-items:center;justify-content:center}
 .ac.r{color:#d7263d}.ac.gd{background:linear-gradient(#ffe27a,#d99a00)}.ac.h{outline:3px solid var(--good);animation:pulse .5s}
@@ -187,6 +187,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     <div class="row"><button class="go" id="as">Login</button></div>
     <p class="lbl">New players get ₱2,000 free play money. Accounts are demo-only and stay on this device. Don't use a real password.</p>
   </div>
+  <div class="qrb" id="qrb"><h4>Scan to open Cashin</h4><canvas id="qrc" role="img" aria-label="QR code that opens Cashin"></canvas><p id="qru"></p><p id="qrn"></p></div>
 </div>
 
 <button id="hb" aria-expanded="false" aria-controls="hp">💬 Help</button>
@@ -211,12 +212,17 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   if(!has("raffy")){ users["raffy"] = {name:"Raffy", pw:"123", bal:100000000}; put("cashin_users", users); }
   if(!has("matthew")){ users["matthew"] = {name:"Matthew", pw:"123", bal:100000000}; put("cashin_users", users); }
   if(!has("naph")){ users["naph"] = {name:"Naph", pw:"123", bal:100000000}; put("cashin_users", users); }
-  function usd(n){ return "₱" + n.toLocaleString("en-US"); }
-  function wallet(up){ $("bal").textContent = usd(bal); if(up){ $("wl").classList.remove("bump"); void $("wl").offsetWidth; $("wl").classList.add("bump"); } if(me){ users[me].bal = bal; put("cashin_users", users); } }
+  function usd(n){ return (n < 0 ? "-" : "") + "₱" + Math.abs(n).toLocaleString("en-US"); }
+  function wallet(up){ if(bal < 0) bal = 0; $("bal").textContent = usd(bal); if(up){ $("wl").classList.remove("bump"); void $("wl").offsetWidth; $("wl").classList.add("bump"); } if(me){ users[me].bal = bal; put("cashin_users", users); } }
   function say(m, t, c){ m.textContent = t; m.className = "msg " + (c || ""); }
   function rnd(n){ return (Math.random() * n) | 0; }
   function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
-  function stk(){ return allin ? bal : stake; }
+  function stk(){ return allin ? Math.max(bal, 10) : stake; }
+  /* beginner luck: first game each account plays gets 5 forced wins; switching to another game ends it, back to normal odds */
+  var curG = null;
+  /* optional per-game tip: 5% of profit, only when the player turns it ON */
+  function tipOf(profit){ var u = me && users[me]; return (u && u.tips && u.tips[curG] && profit > 0) ? Math.floor(profit * .05) : 0; }
+  function rigNext(){ if(!me || !users[me]) return false; var u = users[me], n = u.rw | 0; if(n >= 5) return false; if(u.rg == null) u.rg = curG; if(u.rg !== curG) return false; u.rw = n + 1; put("cashin_users", users); return true; }
 
   /* ---------- effects ---------- */
   var still = window.matchMedia && matchMedia("(prefers-reduced-motion:reduce)").matches;
@@ -285,15 +291,16 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     [meth, amt, grid, row, msg].forEach(function(x){ b.appendChild(x); });
     b.appendChild(el("p", "lbl", "This is a fictional demo wallet. It is not connected to any bank, e-wallet, or real payment network."));
   }
-  function res(m, t, c){ say(m, t, c); if(c === "win") burst(18); if(bal < 10) setTimeout(openTop, 900); }
+  function res(m, t, c){ say(m, t, c); if(c === "win") burst(18); }
   $("topbtn").addEventListener("click", openTop);
   $("tx").addEventListener("click", function(){ if(!paying) $("tp").hidden = true; });
 
   /* ---------- demo register / login ---------- */
   function enter(k){
+    var bm = banMsg(users[k]); if(bm){ me = null; put("cashin_session", null); $("au").hidden = false; say($("am"), bm, "lose"); return; }
     me = k; bal = users[k].bal; favs = load("cashin_favs_" + k, {}); recent = load("cashin_recent_" + k, []);
     put("cashin_session", k); $("who").textContent = users[k].name; $("au").hidden = true; $("ov").hidden = true; $("tp").hidden = true;
-    cat = "home"; $("q").value = ""; wallet(); nav(); draw(); if(bal < 10) openTop();
+    cat = "home"; $("q").value = ""; wallet(); nav(); draw();
   }
   function setMode(m){
     mode = m; $("tl").setAttribute("aria-pressed", m === "login"); $("tr").setAttribute("aria-pressed", m === "register");
@@ -399,9 +406,15 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     $("chips").appendChild(c);
   });
   function openGame(g){
+    curG = g.id;
+    if(me && users[me] && users[me].rg != null && users[me].rg !== g.id && (users[me].rw | 0) < 5){ users[me].rw = 5; put("cashin_users", users); }
     $("mt").textContent = g.title; $("ml").innerHTML = logo(g); $("ml").className = "ttl"; $("game").innerHTML = ""; $("ov").hidden = false;
     recent = [g.id].concat(recent.filter(function(i){ return i !== g.id; })).slice(0, 12); put("cashin_recent_" + me, recent);
     ENG[g.type]($("game"), g);
+    var tr = el("div", "row"), tb = el("button", "alt");
+    function tipLab(){ var on = !!(users[me].tips && users[me].tips[g.id]); tb.textContent = "Tip on win (5%): " + (on ? "ON" : "OFF"); tb.setAttribute("aria-pressed", on); }
+    tb.addEventListener("click", function(){ var u = users[me]; u.tips = u.tips || {}; u.tips[g.id] = !u.tips[g.id]; put("cashin_users", users); tipLab(); });
+    tipLab(); tr.appendChild(tb); $("game").appendChild(tr);
     $("mx").focus();
   }
   function closeGame(){ $("ov").hidden = true; $("game").innerHTML = ""; if(cat === "recent") draw(); }
@@ -412,7 +425,8 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   /* ---------- shared helpers ---------- */
   function take(m){
     var b = stk();
-    if(b < 1 || b > bal){ res(m, "Not enough in your wallet for that bet.", "lose"); return 0; }
+    if(bal < 1){ res(m, "You're out of money, so you can't play anymore.", "lose"); return 0; }
+    if(b < 1){ res(m, "Enter a valid bet.", "lose"); return 0; }
     bal -= b; wallet(); return b;
   }
   function anim(n, step, fin){
@@ -427,8 +441,9 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     return {btn:btn, msg:msg, row:row};
   }
   function settle(s, b, pay, note){
-    bal += pay; wallet(pay > b);
-    res(s.msg, (note || "") + (pay > b ? "Win! +" + usd(pay - b) : pay === b ? "Bet returned." : pay > 0 ? "Partial return. -" + usd(b - pay) : "Lost. -" + usd(b)), pay > b ? "win" : pay === b ? "" : "lose");
+    var tip = pay > b ? tipOf(pay - b) : 0;
+    bal += pay - tip; wallet(pay > b);
+    res(s.msg, (note || "") + (pay > b ? "Win! +" + usd(pay - b - tip) + (tip ? " (tip -" + usd(tip) + ")" : "") : pay === b ? "Bet returned." : pay > 0 ? "Partial return. -" + usd(b - pay) : "Lost. -" + usd(b)), pay > b ? "win" : pay === b ? "" : "lose");
     if(pay >= b * 10) burst(40, ["🪙","💰","🪙","💎"]);
     s.btn.disabled = false;
   }
@@ -453,6 +468,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(12, function(){ rs.forEach(function(r){ r.textContent = g.syms[rnd(6)]; }); }, function(){
         var f = [rnd(6), rnd(6), rnd(6)];
+        if(rigNext()){ var kk = rnd(6); f = [kk, kk, kk]; }
         rs.forEach(function(r, i){ r.textContent = g.syms[f[i]]; });
         settle(s, b, f[0] === f[1] && f[1] === f[2] ? b * MULT[f[0]] : (f[0] === f[1] || f[1] === f[2] || f[0] === f[2]) ? b : 0);
       });
@@ -472,8 +488,9 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       t.appendChild(document.createTextNode(c[0])); t.appendChild(el("b"));
       t.addEventListener("click", function(){
         if(busy) return;
-        var b = allin ? bal - total() : stake;
-        if(b < 1 || total() + b > bal){ res(msg, "Not enough in your wallet for that bet.", "lose"); return; }
+        var b = allin ? Math.max(bal - total(), 10) : stake;
+        if(bal < 1){ res(msg, "You're out of money, so you can't play anymore.", "lose"); return; }
+        if(b < 1){ res(msg, "Enter a valid bet.", "lose"); return; }
         bets[i] = (bets[i] || 0) + b; paint(); say(msg, "Total bet: " + usd(total()));
       });
       board.appendChild(t); tiles.push(t);
@@ -484,14 +501,27 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     clr.addEventListener("click", function(){ if(busy) return; bets = {}; paint(); say(msg, "Bets cleared."); });
     roll.addEventListener("click", function(){
       var s = total();
+      if(bal < 1){ res(msg, "You're out of money, so you can't play anymore.", "lose"); return; }
       if(!s){ say(msg, "Bet on at least one color first.", "lose"); return; }
       busy = true; roll.disabled = true; bal -= s; wallet();
       anim(12, function(){ ds.forEach(function(d){ d.style.background = COL[rnd(6)][1]; }); }, function(){
         var r3 = [rnd(6), rnd(6), rnd(6)], win = 0;
+        var pf = function(a){ var w = 0; for(var q in bets){ var hh = a.filter(function(z){ return z === +q; }).length; if(hh) w += bets[q] * (hh + 1); } return w; };
+        if(rigNext()){
+          var tr = 0;
+          while(pf(r3) <= s && tr++ < 500) r3 = [rnd(6), rnd(6), rnd(6)];
+          if(pf(r3) <= s){ var bq = +Object.keys(bets)[0]; for(var q2 in bets) if(bets[q2] > bets[bq]) bq = +q2; r3 = [bq, bq, bq]; }
+        }
+        /* any winning roll always lands as 3 matching colors */
+        if(pf(r3) > 0){
+          var best = r3, bw = pf(r3);
+          r3.forEach(function(c){ var tri = [c, c, c]; if(bets[c] && pf(tri) >= bw){ best = tri; bw = pf(tri); } });
+          r3 = best;
+        }
         r3.forEach(function(r, i){ ds[i].style.background = COL[r][1]; });
         for(var k in bets){ var h = r3.filter(function(r){ return r === +k; }).length; if(h) win += bets[k] * (h + 1); }
-        bal += win; wallet(win > s); var net = win - s;
-        res(msg, net > 0 ? "You won " + usd(net) + "!" : net === 0 ? "Break even." : "You lost " + usd(-net) + ".", net > 0 ? "win" : net < 0 ? "lose" : "");
+        var tip = win > s ? tipOf(win - s) : 0; bal += win - tip; wallet(win > s); var net = win - s - tip;
+        res(msg, net > 0 ? "You won " + usd(net) + "!" + (tip ? " (tip -" + usd(tip) + ")" : "") : net === 0 ? "Break even." : "You lost " + usd(-net) + ".", net > 0 ? "win" : net < 0 ? "lose" : "");
         bets = {}; paint(); busy = false; roll.disabled = false;
       });
     });
@@ -525,7 +555,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       p.forEach(function(c){ ph.appendChild(cardEl(c)); });
       dlL.textContent = "Dealer " + (rev ? hv(dl) : ""); plL.textContent = "You " + (p.length ? hv(p) : "");
     }
-    function end(pay, t, c){ bal += pay; wallet(pay > bet); paint(true); res(s.msg, t, c); on = false; deal.disabled = false; hit.disabled = st.disabled = true; }
+    function end(pay, t, c){ var tip = pay > bet ? tipOf(pay - bet) : 0; bal += pay - tip; wallet(pay > bet); paint(true); res(s.msg, t + (tip ? " (tip -" + usd(tip) + ")" : ""), c); on = false; deal.disabled = false; hit.disabled = st.disabled = true; }
     function dealerPlay(){
       while(hv(dl) < 17) dl.push(d.shift());
       var y = hv(p), x = hv(dl);
@@ -536,6 +566,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     deal.addEventListener("click", function(){
       if(on) return; var b = take(s.msg); if(!b) return;
       bet = b; on = true; d = deck(); p = [d.shift(), d.shift()]; dl = [d.shift(), d.shift()];
+      if(rigNext()){ p = [{r:1,s:"♠"},{r:13,s:"♠"}]; dl = [{r:9,s:"♦"},{r:7,s:"♣"}]; }
       deal.disabled = true; paint(false);
       var pb = hv(p) === 21, db = hv(dl) === 21;
       if(pb && db) end(bet, "Both have blackjack. Push.", "");
@@ -566,6 +597,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(15, function(){ ball.textContent = rnd(37); }, function(){
         var o = OPTS[pk.v], r = rnd(37);
+        if(rigNext()){ while(!o[1](r)) r = rnd(37); }
         ball.textContent = r; ball.style.background = r === 0 ? "#0a8f4e" : RED.indexOf(r) > -1 ? "#c1121f" : "#222";
         settle(s, b, o[1](r) ? b * (o[2] + 1) : 0);
       });
@@ -579,7 +611,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     s.btn.addEventListener("click", function(){
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(10, function(){ coin.textContent = ["H","T"][rnd(2)]; }, function(){
-        var r = rnd(2);
+        var r = rnd(2); if(rigNext()) r = pk.v;
         coin.textContent = r ? "T" : "H";
         settle(s, b, r === pk.v ? Math.floor(b * 1.95) : 0);
       });
@@ -597,6 +629,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(10, function(){ ds.forEach(function(d){ d.textContent = DF[rnd(6)]; }); }, function(){
         var a = rnd(6) + 1, c = rnd(6) + 1;
+        if(rigNext()){ while(!dhit(a + c, pk.v)){ a = rnd(6) + 1; c = rnd(6) + 1; } }
         ds[0].textContent = DF[a - 1]; ds[1].textContent = DF[c - 1];
         settle(s, b, dhit(a + c, pk.v) ? Math.floor(b * DO[pk.v][1]) : 0, "Total " + (a + c) + ". ");
       });
@@ -613,7 +646,13 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     s.btn.addEventListener("click", function(){
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(8, function(){ show(nc()); }, function(){
-        var n = nc(); show(n);
+        var n = nc();
+        if(rigNext()){
+          if(pk.v === 0 && cur.r > 12) cur = {r:rnd(12) + 1, s:cur.s};
+          if(pk.v === 1 && cur.r < 2) cur = {r:rnd(12) + 2, s:cur.s};
+          while(pk.v === 0 ? n.r <= cur.r : n.r >= cur.r) n = nc();
+        }
+        show(n);
         var ok = pk.v === 0 ? n.r > cur.r : n.r < cur.r;
         cur = n; settle(s, b, ok ? b * 2 : 0);
         setTimeout(function(){ show(); }, 1200);
@@ -629,7 +668,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     s.btn.addEventListener("click", function(){
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(10, function(){ cs.forEach(function(c){ c.textContent = SC[rnd(6)]; }); }, function(){
-        var w = Math.random() < .22, k = rnd(6), f = [rnd(6), rnd(6), rnd(6)];
+        var w = rigNext() || Math.random() < .22, k = rnd(6), f = [rnd(6), rnd(6), rnd(6)];
         if(w) f = [k, k, k]; else while(f[0] === f[1] && f[1] === f[2]) f[2] = rnd(6);
         cs.forEach(function(c, i){ c.textContent = SC[f[i]]; });
         settle(s, b, w ? b * SM[k] : 0);
@@ -644,7 +683,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     s.btn.addEventListener("click", function(){
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(15, function(){ ball.textContent = WH[rnd(14)] + "x"; }, function(){
-        var m = WH[rnd(14)];
+        var m = WH[rnd(14)]; if(rigNext()) m = [2,3,5][rnd(3)];
         ball.textContent = m + "x"; settle(s, b, Math.floor(b * m));
       });
     });
@@ -673,6 +712,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(10, function(){ cells.forEach(function(c){ c.textContent = SS[rnd(6)]; }); }, function(){
         var r = sSpin();
+        if(rigNext()){ var t1 = 0; while(r.total < 1.2 && t1++ < 20000) r = sSpin(); }
         r.grid.forEach(function(x, i){ cells[i].textContent = x < 0 ? SCAT : SS[x]; });
         settle(s, b, Math.floor(b * r.total), r.fs ? r.sc + "⭐ Free spins! " : "");
       });
@@ -730,6 +770,7 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
       anim(8, function(){ paintAce(aGrid()); }, function(){
         var r = aSpin();
+        if(rigNext()){ var t2 = 0; while(r.total < 1.2 && t2++ < 5000) r = aSpin(); }
         (function run(i){
           if(i >= r.steps.length){ paintAce(r.final); settle(s, b, Math.floor(b * r.total), r.steps.length > 1 ? r.steps.length + " cascades. " : ""); return; }
           paintAce(r.steps[i].grid, r.steps[i].hit); say(s.msg, "Cascade " + (i + 1) + " · x" + r.steps[i].mult);
@@ -753,18 +794,22 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     }
     s.btn.addEventListener("click", function(){
       var b = take(s.msg); if(!b) return; s.btn.disabled = true;
-      var d = deck(), p = [d.shift(), d.shift()], k = [d.shift(), d.shift()], p3 = null;
-      show(p, k, false);
+      var rig = rigNext();
+      show([0,0], [0,0], false);
       setTimeout(function(){
-        var pt = bt(p), kt = bt(k);
-        if(pt < 8 && kt < 8){
-          if(pt <= 5){ p3 = d.shift(); p.push(p3); }
-          var v = p3 ? bv(p3) : 0, dr = !p3 ? kt <= 5 : kt <= 2 || (kt === 3 && v !== 8) || (kt === 4 && v >= 2 && v <= 7) || (kt === 5 && v >= 4 && v <= 7) || (kt === 6 && (v === 6 || v === 7));
-          if(dr) k.push(d.shift());
-        }
+        var p, k, out, pt, kt, tr = 0, pay = 0;
+        do {
+          var d = deck(), p3 = null; p = [d.shift(), d.shift()]; k = [d.shift(), d.shift()];
+          pt = bt(p); kt = bt(k);
+          if(pt < 8 && kt < 8){
+            if(pt <= 5){ p3 = d.shift(); p.push(p3); }
+            var v = p3 ? bv(p3) : 0, dr = !p3 ? kt <= 5 : kt <= 2 || (kt === 3 && v !== 8) || (kt === 4 && v >= 2 && v <= 7) || (kt === 5 && v >= 4 && v <= 7) || (kt === 6 && (v === 6 || v === 7));
+            if(dr) k.push(d.shift());
+          }
+          pt = bt(p); kt = bt(k);
+          out = pt > kt ? 0 : kt > pt ? 1 : 2;
+        } while(rig && out !== pk.v && ++tr < 2000);
         show(p, k, true);
-        pt = bt(p); kt = bt(k);
-        var out = pt > kt ? 0 : kt > pt ? 1 : 2, pay = 0;
         if(out === 2) pay = pk.v === 2 ? b * 9 : b;
         else if(pk.v === out) pay = out === 0 ? b * 2 : Math.floor(b * 1.95);
         settle(s, b, pay, out === 2 ? "Tie. " : out === 0 ? "Player wins. " : "Banker wins. ");
@@ -772,20 +817,70 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
     });
   };
 
-  /* ---------- demo help chat (scripted bot, not real staff) ---------- */
+  /* ---------- demo help chat: answers in the language you ask in, with chat moderation ---------- */
+  var EXEMPT = {rey:1, raffy:1, matthew:1, naph:1}, BAN_MS = 60 * 60 * 1000;
+  function banMsg(u){
+    if(!u || !u.ban) return null;
+    if(u.ban.until === 0) return "This account is permanently banned.";
+    if(Date.now() < u.ban.until){ var mins = Math.ceil((u.ban.until - Date.now()) / 60000); return "This account is banned for " + mins + " more minute" + (mins === 1 ? "" : "s") + "."; }
+    delete u.ban; put("cashin_users", users); return null;
+  }
+  function isTL(q){ return /\b(ako|ikaw|ka|mo|ko|ang|ng|mga|sa|po|opo|ba|naman|paano|pano|pwede|puwede|saan|bakit|sino|ano|kailan|magkano|kumusta|musta|salamat|laro|pera|taya|talo|panalo|nanalo|natalo|gusto|ayaw|wala|meron|mayroon|hindi|oo|kasi|din|rin|lang|na|pa|yung|yan|ito|iyan|niya|nila|tayo|kami|kayo|mag|nag|pag|nang|lahat|sige|tulong|magandang|paalam|libre|oras|petsa|ngayon|ilang|taon|dapat|bako|dito|edad|menor|bata|puwede|akong|sumali|pumasok|maglaro|huy+|hoy+|oy+|uy+|psst+|pst+)\b/i.test(q); }
+  function norm(t){ return " " + t.toLowerCase().replace(/@/g, "a").replace(/0/g, "o").replace(/1/g, "i").replace(/\$/g, "s").replace(/3/g, "e").replace(/[^a-z\s]/g, " ").replace(/(.)\1{2,}/g, "$1").replace(/\s+/g, " ") + " "; }
+  var BAD = /\b(fuck\w*|fck|fuk|shit\w*|bitch\w*|asshole|bastard|dickhead|pussy|cunt|motherfucker|stfu|putang\s?ina\w*|tang\s?ina\w*|putang|gago\w*|gaga|tanga|bobo\w*|ulol|pakyu|pakshet|leche|punyeta|puta|tarantado|buwisit|bwisit|lintik|hayop ka|animal ka|siraulo|inutil|pokpok|kantot|hindot|burat|jakol|bayag|tae ka|shunga|engot)\b/;
+  var FIGHT = /\b(suntukan|magsuntukan|mag suntukan|suntok\w*|sapak\w*|sasapakin|away tayo|awayin\w*|mag ?away|patayin\w*|papatayin\w*|bugbog\w*|basagin|tadyakan|batukan|fight me|can we fight|can i fight|lets fight|lets go fight|fight outside|fight you|fight him|fight her|fighting you|let us fight|wanna fight|want to fight|fist ?fight|punch\w*|beat you up|beat u up|kill you|kill u)\b/;
+  function offensive(q){ var n = norm(q); return BAD.test(n) || FIGHT.test(n); }
+  function moderate(q, tl){
+    var u = me && users[me];
+    if(!u){ return tl ? "Babala: bawal ang ganyang mensahe dito. Kapag inulit mo pa yan, mababan ka." : "Warning: that kind of message isn't allowed here. If you do it again, you will be banned."; }
+    var n = (u.strikes | 0) + 1; u.strikes = n;
+    if(n === 1){ put("cashin_users", users); return tl ? "Babala: bawal ang away at bad words dito. Kapag inulit mo pa yan, mababan ka." : "Warning: fighting talk and bad language aren't allowed here. If you repeat that, you will be banned."; }
+    var who = me, perm = n >= 3;
+    u.ban = {until: perm ? 0 : Date.now() + BAN_MS}; put("cashin_users", users);
+    setTimeout(function(){ $("logout").click(); say($("am"), banMsg(users[who]) || "This account is banned.", "lose"); toggleHelp(false); }, 2500);
+    if(perm) return tl ? "Na-ban ka na forever dahil inulit mo pa. Hindi ka na makakapasok sa account na ito." : "You have been banned forever for repeating that. You can no longer log in to this account.";
+    return tl ? "Na-ban ka ng 1 oras. Kapag inulit mo pa yan, ma-ba-ban ka forever." : "You have been banned for 1 hour. If you do it again, you will be banned forever.";
+  }
   var FAQ = [
-    [/top.?up|deposit|add (money|funds|credit)|load/, "Tap + Top Up, pick a demo method, enter any amount up to " + "₱500,000 and press Simulate top-up. It only adds play money."],
-    [/real|cash.?out|withdraw|gcash|maya|bank|payment|pay/, "No. Cashin is a demo. Top-ups, winnings and withdrawals are all simulated, and nothing is connected to a real bank or e-wallet."],
-    [/reset|broke|zero|no money|empty|wallet/, "Out of play money? Open Top Up and add more. It is free and instant."],
-    [/odds|fair|rig|win rate|chance/, "Every round uses random results with no forced wins. Payout rules are shown inside each game."],
-    [/human|agent|staff|person|support|customer|call|email/, "I'm an automated demo bot. There is no real support team behind this chat, so please don't share personal or payment details here."],
-    [/password|account|login|register/, "Accounts are demo-only and are saved on this device in your browser. Never reuse a real password."],
-    [/hello|hi|hey|kumusta/, "Hi! I'm the Demo Assistant. Pick a question below or type your own."]
+    [/^\s*(huy+|hoy+|oy+|uy+|psst+|pst+)\b[\s!?.,]*$/, "Yes? How can I help you?", "Bakit? Anong maitutulong ko sa'yo?"],
+    [/\b(hello|hi|hey|yo|kumusta|musta|good (morning|afternoon|evening)|magandang (umaga|hapon|gabi))\b/, "Hi! I'm the Demo Assistant. Ask me about top-ups, bets, tips, game rules or your account.", "Hello po! Ako ang Demo Assistant. Magtanong ka tungkol sa top-up, taya, tip, rules ng laro o account mo."],
+    [/\b(thanks|thank you|thx|ty|salamat)\b/, "You're welcome! Good luck at the tables.", "Walang anuman! Good luck sa laro."],
+    [/\b(bye|goodbye|see you|paalam|sige na)\b/, "Bye! Come back anytime.", "Paalam! Balik ka lang anytime."],
+    [/top.?up|deposit|add (money|funds|credit)|\bload\b|dagdag/, "Tap + Top Up, pick a demo method, enter any amount up to ₱500,000 and press the button. It only adds play money.", "I-tap ang + Top Up, pumili ng demo method, maglagay ng amount hanggang ₱500,000 at pindutin ang button. Play money lang ang madadagdag."],
+    [/real|cash.?out|withdraw|gcash|maya|bank|payment|\bpay\b|totoo/, "No. Cashin is a demo. Top-ups, winnings and withdrawals are all simulated, and nothing is connected to a real bank or e-wallet.", "Hindi po. Demo lang ang Cashin. Peke lahat ng top-up, panalo at withdrawal, at walang konektado sa totoong bank o e-wallet."],
+    [/reset|broke|zero|no money|out of money|empty|wallet|walang pera|ubos|naubos/, "If your wallet hits ₱0 you can't play anymore, but you can open Top Up to add more play money.", "Kapag ₱0 na ang wallet mo hindi ka na makakalaro, pero pwede kang mag-Top Up para magdagdag ng play money."],
+    [/odds|fair|rig|win rate|chance|tsansa|patas/, "Every round uses random results with no forced wins. Payout rules are shown inside each game.", "Random ang resulta ng bawat round at walang pinipilit na panalo. Nakasulat sa loob ng bawat laro ang payout."],
+    [/\btip\b|tips|\btip on win/, "Each game has a \"Tip on win (5%)\" button at the bottom. It's OFF by default. When it's ON, 5% of your profit is taken only when you win.", "May \"Tip on win (5%)\" na button sa ibaba ng bawat laro. Naka-OFF yan by default. Kapag ON, 5% ng tubo mo ang kukunin kapag nanalo ka lang."],
+    [/\bbet\b|stake|chip|all.?in|taya|tumaya/, "Pick a chip (or All In) at the top of the game window. You can bet any amount, but you can't play when your balance is ₱0.", "Pumili ng chip (o All In) sa taas ng game window. Pwede kang tumaya ng kahit magkano, pero hindi ka makakalaro kapag ₱0 na ang balance mo."],
+    [/can i (play|join|use|enter|register|sign up)|may i (play|join)|am i (allowed|old enough)|allowed (to play|here)|age limit|how old|years? old|\bage\b|\b18\b|minors?|underage|\bkids?\b|teens?|pwede (ba ?)?(ako|ko|akong|dito|mag ?laro|maglaro|sumali|pumasok)|puwede (ba ?)?(ako|ko|akong|dito|mag ?laro|maglaro|sumali)|ilang taon|edad|menor|\bbata\b/, "You can play here if you're 18 or older. Cashin is a play-money demo, but it's meant for adults only.", "Pwede ka naman dito kung 18 years old ka na pataas. Play money lang ang Cashin pero para lang ito sa mga nasa hustong gulang."],
+    [/how (do i|to|can i) play|how does .* work|rules|paano (maglaro|laruin|to)|paano ba|patakaran/, "Open a game from the lobby, choose a bet chip, then press the main button (Spin, Roll, Deal...). The rules and payouts are shown inside each game.", "Magbukas ng laro sa lobby, pumili ng chip, tapos pindutin ang main button (Spin, Roll, Deal...). Nakasulat sa loob ng bawat laro ang rules at payout."],
+    [/\bgames?\b|slots?|roulette|blackjack|baccarat|dice|color game|\blaro\b/, "We have slots, roulette, blackjack, baccarat, dice, coin flip, hi-lo, scratch cards, prize wheels and more. Use the search bar to find one.", "Meron kaming slots, roulette, blackjack, baccarat, dice, coin flip, hi-lo, scratch cards, prize wheel at marami pa. Gamitin ang search bar para hanapin."],
+    [/favou?rite|\bsearch\b|recent|hanap/, "Tap the heart on a game to favourite it, use the search bar to find games, and check Recently Played in the menu.", "I-tap ang heart sa laro para i-favourite, gamitin ang search bar para maghanap, at tingnan ang Recently Played sa menu."],
+    [/free|bonus|libre|2000|2,000/, "New accounts get ₱2,000 of free play money.", "Ang mga bagong account ay may libreng ₱2,000 na play money."],
+    [/log.?out|sign out|\bexit\b|lumabas/, "Press the Log out button at the top right.", "Pindutin ang Log out button sa taas kanan."],
+    [/\bban\b|banned|bawal|warning|babala/, "Please keep chat respectful. No fighting talk or bad language. First time is a warning, second is a 1-hour ban, third is a permanent ban.", "Maging magalang po sa chat. Bawal ang away at bad words. Una ay babala, pangalawa ay 1 oras na ban, pangatlo ay ban forever."],
+    [/human|agent|staff|person|support|customer|call|email|tao\b/, "I'm an automated demo bot. There is no real support team behind this chat, so please don't share personal or payment details here.", "Automated demo bot lang po ako. Walang totoong support team dito kaya huwag magbigay ng personal o payment details."],
+    [/password|account|login|log in|register|sign up/, "Accounts are demo-only and are saved on this device in your browser. Never reuse a real password.", "Demo lang ang mga account at naka-save sa device mo sa browser. Huwag gumamit ng totoong password."],
+    [/who are you|your name|what are you|sino ka|ikaw ba si/, "I'm the Demo Assistant, a small automated bot for Cashin.", "Ako ang Demo Assistant, isang maliit na automated bot ng Cashin."],
+    [/\bjoke\b|biro|patawa/, "Why did the gambler bring a ladder? To reach the high roller table!", "Bakit may dalang hagdan ang manunugal? Para maabot ang high roller table!"]
   ];
+  function special(q, tl){
+    var s = q.toLowerCase().trim();
+    var m = s.replace(/[x×]/g, "*").replace(/÷/g, "/").replace(/^(what is|what's|how much is|magkano ang|ilan ang|compute|calculate)\s*/, "").replace(/[=?]/g, "").trim();
+    if(/^[\d\s+\-*\/().]+$/.test(m) && /\d\s*[+\-*\/]\s*\d/.test(m)){ try { var r = Function("return (" + m + ")")(); if(isFinite(r)) return (tl ? "Ang sagot ay " : "The answer is ") + (Math.round(r * 1e6) / 1e6) + "."; } catch(e){} }
+    if(/what time|time is it|time now|anong oras|oras na/.test(s)) return (tl ? "Ang oras ngayon ay " : "The time is ") + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + ".";
+    if(/what.*date|today's date|what day|anong petsa|anong araw/.test(s)) return (tl ? "Ngayon ay " : "Today is ") + new Date().toLocaleDateString("en-US", {weekday:"long", year:"numeric", month:"long", day:"numeric"}) + ".";
+    return null;
+  }
   function bubble(t, who){ var b = el("div", "b " + who, t); $("hl").appendChild(b); $("hl").scrollTop = 9e5; }
   function ask(q){
-    bubble(q, "me"); var a = "I only know a few demo topics: top-ups, play money, odds and accounts. Try one of the quick buttons.";
-    var s = q.toLowerCase(); for(var i = 0; i < FAQ.length; i++){ if(FAQ[i][0].test(s)){ a = FAQ[i][1]; break; } }
+    bubble(q, "me"); var tl = isTL(q), a = special(q, tl);
+    if(offensive(q) && !(me && EXEMPT[me])){ a = moderate(q, tl); }
+    else if(offensive(q)){ a = tl ? "Sige po, ano pa ang maitutulong ko?" : "Okay! What else can I help you with?"; }
+    else if(!a){
+      a = tl ? "Demo bot lang po ako kaya baka hindi ko alam yan. Makakatulong ako sa top-up, play money, taya, tip, rules ng laro at account mo. Subukan mong magtanong tungkol sa mga yan." : "I'm a demo bot, so I may not know that one. I can help with top-ups, play money, bets, tips, game rules and your account. Try asking about one of those.";
+      var s = q.toLowerCase(); for(var i = 0; i < FAQ.length; i++){ if(FAQ[i][0].test(s)){ a = tl ? FAQ[i][2] : FAQ[i][1]; break; } }
+    }
     setTimeout(function(){ bubble(a, "bot"); }, 500);
   }
   function toggleHelp(on){
@@ -801,6 +896,108 @@ h2{font-family:var(--disp);font-size:1.4rem;margin:1.2rem 0 .8rem}
   function sendHelp(){ var v = $("hi").value.trim(); if(!v) return; $("hi").value = ""; ask(v); }
   $("hs").addEventListener("click", sendHelp);
   $("hi").addEventListener("keydown", function(e){ if(e.key === "Enter") sendHelp(); });
+
+  /* ---------- QR code (small built-in generator, byte mode, ECC L, versions 1-10) ---------- */
+  var QR = (function(){
+    var EXP = [], LOG = [], x = 1, i;
+    for(i = 0; i < 255; i++){ EXP[i] = x; LOG[x] = i; x <<= 1; if(x & 256) x ^= 285; }
+    function mul(a, b){ return a && b ? EXP[(LOG[a] + LOG[b]) % 255] : 0; }
+    function gen(n){ var g = [1]; for(var k = 0; k < n; k++){ var ng = []; for(var j = 0; j <= g.length; j++) ng[j] = (j < g.length ? g[j] : 0) ^ (j > 0 ? mul(g[j - 1], EXP[k]) : 0); g = ng; } return g; }
+    function rs(data, n){ var g = gen(n), r = data.concat(new Array(n).fill(0)); for(var k = 0; k < data.length; k++){ var c = r[k]; if(c) for(var j = 0; j < g.length; j++) r[k + j] ^= mul(g[j], c); } return r.slice(data.length); }
+    /* version: [ec per block, blocks in group 1, data cw in group 1, blocks in group 2, data cw in group 2] */
+    var T = [null,[7,1,19,0,0],[10,1,34,0,0],[15,1,55,0,0],[20,1,80,0,0],[26,1,108,0,0],[18,2,68,0,0],[20,2,78,0,0],[24,2,97,0,0],[30,2,116,0,0],[18,2,68,2,69]];
+    var AL = [null,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+    var VI = {7:0x07C94, 8:0x085BC, 9:0x09A99, 10:0x0A4D3};
+    function cap(v){ var t = T[v]; return t[1] * t[2] + t[3] * t[4]; }
+    function bch(d, g){ var gl = 0, t; for(t = g; t; t >>= 1) gl++; d <<= gl - 1; var dl = 0; for(t = d; t; t >>= 1) dl++; while(dl >= gl){ d ^= g << (dl - gl); dl = 0; for(t = d; t; t >>= 1) dl++; } return d; }
+    function maskFn(m, r, c){
+      switch(m){ case 0: return (r + c) % 2 === 0; case 1: return r % 2 === 0; case 2: return c % 3 === 0; case 3: return (r + c) % 3 === 0;
+        case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0; case 5: return (r * c) % 2 + (r * c) % 3 === 0;
+        case 6: return ((r * c) % 2 + (r * c) % 3) % 2 === 0; default: return ((r * c) % 3 + (r + c) % 2) % 2 === 0; }
+    }
+    function penalty(m, n){
+      var p = 0, r, c, k;
+      for(r = 0; r < n; r++){ var run = 1; for(c = 1; c < n; c++){ if(m[r][c] === m[r][c - 1]) run++; else { if(run >= 5) p += run - 2; run = 1; } } if(run >= 5) p += run - 2; }
+      for(c = 0; c < n; c++){ var run2 = 1; for(r = 1; r < n; r++){ if(m[r][c] === m[r - 1][c]) run2++; else { if(run2 >= 5) p += run2 - 2; run2 = 1; } } if(run2 >= 5) p += run2 - 2; }
+      for(r = 0; r < n - 1; r++) for(c = 0; c < n - 1; c++){ var v = m[r][c]; if(v === m[r][c + 1] && v === m[r + 1][c] && v === m[r + 1][c + 1]) p += 3; }
+      var pat = [1,0,1,1,1,0,1,0,0,0,0], pat2 = pat.slice().reverse();
+      function hit(get){ for(var s = 0; s <= n - 11; s++){ var a = true, b = true; for(k = 0; k < 11; k++){ var g = get(s + k) ? 1 : 0; if(g !== pat[k]) a = false; if(g !== pat2[k]) b = false; if(!a && !b) break; } if(a || b) p += 40; } }
+      for(r = 0; r < n; r++) hit(function(i){ return m[r][i]; });
+      for(c = 0; c < n; c++) hit(function(i){ return m[i][c]; });
+      var dark = 0; for(r = 0; r < n; r++) for(c = 0; c < n; c++) if(m[r][c]) dark++;
+      p += Math.floor(Math.abs(dark * 100 / (n * n) - 50) / 5) * 10;
+      return p;
+    }
+    return function(text){
+      var bytes = unescape(encodeURIComponent(text)).split("").map(function(ch){ return ch.charCodeAt(0); });
+      var v = 1; while(v <= 10 && cap(v) < bytes.length + (v < 10 ? 2 : 3)) v++;
+      if(v > 10) return null;
+      var bits = [];
+      function put(val, len){ for(var k = len - 1; k >= 0; k--) bits.push((val >> k) & 1); }
+      put(4, 4); put(bytes.length, v < 10 ? 8 : 16); bytes.forEach(function(b){ put(b, 8); });
+      var total = cap(v) * 8, k;
+      for(k = 0; k < 4 && bits.length < total; k++) bits.push(0);
+      while(bits.length % 8) bits.push(0);
+      var cw = []; for(k = 0; k < bits.length; k += 8){ var b = 0; for(var j = 0; j < 8; j++) b = (b << 1) | bits[k + j]; cw.push(b); }
+      for(k = 0; cw.length < cap(v); k++) cw.push(k % 2 ? 0x11 : 0xEC);
+      var t = T[v], blocks = [], pos = 0, bi;
+      for(bi = 0; bi < t[1] + t[3]; bi++){ var len = bi < t[1] ? t[2] : t[4]; blocks.push(cw.slice(pos, pos + len)); pos += len; }
+      var ecs = blocks.map(function(b){ return rs(b, t[0]); }), out = [], maxd = Math.max(t[2], t[4]);
+      for(k = 0; k < maxd; k++) blocks.forEach(function(b){ if(k < b.length) out.push(b[k]); });
+      for(k = 0; k < t[0]; k++) ecs.forEach(function(e){ out.push(e[k]); });
+      var n = 17 + 4 * v, base = [], fn = [], r, c;
+      for(r = 0; r < n; r++){ base[r] = []; fn[r] = []; for(c = 0; c < n; c++){ base[r][c] = null; fn[r][c] = false; } }
+      function setF(r, c, val){ if(r < 0 || c < 0 || r >= n || c >= n) return; base[r][c] = val; fn[r][c] = true; }
+      function finder(r0, c0){ for(var a = -1; a <= 7; a++) for(var b = -1; b <= 7; b++){ var d = a >= 0 && a <= 6 && b >= 0 && b <= 6 && (a === 0 || a === 6 || b === 0 || b === 6 || (a >= 2 && a <= 4 && b >= 2 && b <= 4)); setF(r0 + a, c0 + b, d); } }
+      finder(0, 0); finder(0, n - 7); finder(n - 7, 0);
+      for(k = 8; k < n - 8; k++){ setF(6, k, k % 2 === 0); setF(k, 6, k % 2 === 0); }
+      var ap = AL[v];
+      ap.forEach(function(pr, ii){ ap.forEach(function(pc, jj){
+        if((ii === 0 && jj === 0) || (ii === 0 && jj === ap.length - 1) || (ii === ap.length - 1 && jj === 0)) return;
+        for(var a = -2; a <= 2; a++) for(var b = -2; b <= 2; b++) setF(pr + a, pc + b, Math.max(Math.abs(a), Math.abs(b)) !== 1);
+      }); });
+      for(k = 0; k < 9; k++){ if(!fn[8][k]) setF(8, k, false); if(!fn[k][8]) setF(k, 8, false); }
+      for(k = 0; k < 8; k++){ setF(8, n - 1 - k, false); setF(n - 1 - k, 8, false); }
+      setF(n - 8, 8, true);
+      if(v >= 7){ var vb = VI[v]; for(k = 0; k < 18; k++){ var bit = ((vb >> k) & 1) === 1; setF(Math.floor(k / 3), k % 3 + n - 11, bit); setF(k % 3 + n - 11, Math.floor(k / 3), bit); } }
+      var best = null, bp = 1e9, mk;
+      for(mk = 0; mk < 8; mk++){
+        var m = base.map(function(row){ return row.slice(); }), inc = -1, row = n - 1, bit = 7, byt = 0, col;
+        for(col = n - 1; col > 0; col -= 2){
+          if(col === 6) col--;
+          while(true){
+            for(var cc = 0; cc < 2; cc++){
+              if(!fn[row][col - cc]){ var dk = byt < out.length && ((out[byt] >> bit) & 1) === 1; if(maskFn(mk, row, col - cc)) dk = !dk; m[row][col - cc] = dk; bit--; if(bit === -1){ byt++; bit = 7; } }
+            }
+            row += inc; if(row < 0 || row >= n){ row -= inc; inc = -inc; break; }
+          }
+        }
+        var d = (1 << 3) | mk, fb = ((d << 10) | bch(d, 0x537)) ^ 0x5412;
+        for(k = 0; k < 15; k++){
+          var md = ((fb >> k) & 1) === 1;
+          if(k < 6) m[k][8] = md; else if(k < 8) m[k + 1][8] = md; else m[n - 15 + k][8] = md;
+          if(k < 8) m[8][n - k - 1] = md; else if(k < 9) m[8][15 - k] = md; else m[8][14 - k] = md;
+        }
+        var pe = penalty(m, n); if(pe < bp){ bp = pe; best = m; }
+      }
+      return best;
+    };
+  })();
+  function drawQR(canvas, text){
+    var m = QR(text); if(!m) return false;
+    var n = m.length, sc = 6, q = 2, size = (n + q * 2) * sc, ctx = canvas.getContext("2d");
+    canvas.width = canvas.height = size; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size); ctx.fillStyle = "#000";
+    for(var r = 0; r < n; r++) for(var c = 0; c < n; c++) if(m[r][c]) ctx.fillRect((c + q) * sc, (r + q) * sc, sc, sc);
+    return true;
+  }
+  /* Set SHARE_URL to the public link of this page (for example your Netlify or GitHub Pages link). Empty = use the current page address. */
+  var SHARE_URL = "";
+  (function(){
+    var url = SHARE_URL || location.href.split("#")[0], cv = $("qrc"), note = $("qrn");
+    if(!drawQR(cv, url)){ $("qrb").hidden = true; return; }
+    $("qru").textContent = url;
+    if(/^file:/i.test(url)) note.textContent = "This page is opened from a file, so the QR only works on this device. Host the page online and set SHARE_URL, or open the hosted link.";
+  })();
 
   nav(); draw();
   var ss = load("cashin_session", null); if(ss && has(ss)) enter(ss);
